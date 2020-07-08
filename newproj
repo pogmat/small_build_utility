@@ -1,0 +1,271 @@
+#!/bin/bash
+
+MYNAME=${0##*/}
+MYNAME_NO_EXT=${MYNAME%.*}
+
+read -d '' ERRORMESSAGE <<- EOF
+	$MYNAME: Create folders for simple C or C++ projects
+	Usage:
+	    $0 -compiler <projectname>
+	    where compiler can be gcc, clang, g++ or clang++
+EOF
+
+function create_project 
+{
+	read -r -d '' MAKEFILE <<- EOF
+		TARGET = main
+
+		HEADS =
+		SRC = main
+		LIBS =
+
+		TDIR = bin
+		IDIR = include
+		BDIR = build
+		SDIR = src
+
+		HEADEXT = $HEADEREXTENSION
+		SRCEXT = $SOURCEEXTENSION
+		OBJEXT = o
+		TRGEXT = x
+		
+		RUNOPTIONS =
+
+		DEPS = \$(patsubst %, \$(IDIR)/%.\$(HEADEXT), \$(HEADS))
+		OBJS = \$(patsubst %, \$(BDIR)/%.\$(OBJEXT), \$(SRC))
+		SCRS = \$(patsubst %, \$(SDIR)/%.\$(SRCEXT), \$(SRC))
+		RULES = \$(patsubst %, \$(BDIR)/%.d, \$(SRC))
+		
+		ifeq (\$(strip \$(TRGEXT)), )
+		\tTRGNAME=\$(TARGET)
+		else
+		\tTRGNAME=\$(TARGET).\$(TRGEXT)
+		endif
+
+		$COMPILERSTRING = $COMPILER
+		$FLAGSTRING = -Wall -Wextra
+		CPPFLAGS = -I \$(IDIR)
+		LDFLAGS = \$(LIBS)
+		ifneq (\${RELEASE}, y)  
+		\t$FLAGSTRING += -g
+		else
+		\t$FLAGSTRING += -O2
+		\tLDFLAGS += -s
+		endif
+		
+		CPPFLAGS += -MMD -MP
+ 
+		.SUFFIXES :
+
+		.PHONY : all
+		all: \$(TDIR)/\$(TRGNAME)
+
+		\$(BDIR)/%.\$(OBJEXT) : \$(SDIR)/%.\$(SRCEXT)
+		\t\$($COMPILERSTRING) -c \$(CPPFLAGS) \$($FLAGSTRING) -o \$@ \$<
+ 
+		\$(TDIR)/\$(TRGNAME): \$(OBJS)
+		\t\$($COMPILERSTRING) \$(LDFLAGS) -o \$@ \$^
+ 
+		.PHONY : clean
+		clean :
+		\trm -f \$(TDIR)/\$(TRGNAME) \$(OBJS) \$(RULES)
+
+		.PHONY : run
+		run : \$(TDIR)/\$(TRGNAME)
+		\t@\$(TDIR)/\$(TRGNAME) \$(RUNOPTIONS)
+
+		.PHONY : format
+		format : \$(SCRS) \$(DEPS)
+		\t@clang-format -i $^
+		
+		.PHONY : release
+		release :
+		\t@\$(MAKE) RELEASE=y --no-print-directory -B
+
+		.PHONY : valgrind
+		valgrind : \$(TDIR)/\$(TRGNAME)
+		\tvalgrind --leak-check=full --track-origins=yes \$(TDIR)/\$(TRGNAME) \$(RUNOPTIONS)
+ 
+		-include \$(RULES)
+	EOF
+
+	read -r -d '' FORMAT <<- EOF
+	---
+	Language:        Cpp
+	# BasedOnStyle:  LLVM
+	AccessModifierOffset: -2
+	AlignAfterOpenBracket: Align
+	AlignConsecutiveMacros: false
+	AlignConsecutiveAssignments: false
+	AlignConsecutiveDeclarations: false
+	AlignEscapedNewlines: Right
+	AlignOperands:   true
+	AlignTrailingComments: true
+	AllowAllArgumentsOnNextLine: true
+	AllowAllConstructorInitializersOnNextLine: true
+	AllowAllParametersOfDeclarationOnNextLine: true
+	AllowShortBlocksOnASingleLine: false
+	AllowShortCaseLabelsOnASingleLine: false
+	AllowShortFunctionsOnASingleLine: None
+	AllowShortLambdasOnASingleLine: All
+	AllowShortIfStatementsOnASingleLine: Never
+	AllowShortLoopsOnASingleLine: false
+	AlwaysBreakAfterDefinitionReturnType: None
+	AlwaysBreakAfterReturnType: None
+	AlwaysBreakBeforeMultilineStrings: false
+	AlwaysBreakTemplateDeclarations: MultiLine
+	BinPackArguments: true
+	BinPackParameters: true
+	BraceWrapping:
+	  AfterCaseLabel:  false
+	  AfterClass:      false
+	  AfterControlStatement: false
+	  AfterEnum:       false
+	  AfterFunction:   true
+	  #AfterNamespace:  false
+	  AfterObjCDeclaration: false
+	  AfterStruct:     false
+	  AfterUnion:      false
+	  AfterExternBlock: false
+	  BeforeCatch:     false
+	  BeforeElse:      false
+	  IndentBraces:    false
+	  SplitEmptyFunction: true
+	  SplitEmptyRecord: true
+	  SplitEmptyNamespace: true
+	BreakBeforeBinaryOperators: None
+	BreakBeforeBraces: Linux
+	BreakBeforeInheritanceComma: false
+	BreakInheritanceList: BeforeColon
+	BreakBeforeTernaryOperators: true
+	BreakConstructorInitializersBeforeComma: false
+	BreakConstructorInitializers: BeforeColon
+	BreakAfterJavaFieldAnnotations: false
+	BreakStringLiterals: true
+	ColumnLimit:     80
+	CommentPragmas:  '^ IWYU pragma:'
+	CompactNamespaces: false
+	ConstructorInitializerAllOnOneLineOrOnePerLine: false
+	ConstructorInitializerIndentWidth: 4
+	ContinuationIndentWidth: 4
+	Cpp11BracedListStyle: true
+	DerivePointerAlignment: false
+	DisableFormat:   false
+	ExperimentalAutoDetectBinPacking: false
+	FixNamespaceComments: true
+	ForEachMacros:
+	  - foreach
+	  - Q_FOREACH
+	  - BOOST_FOREACH
+	IncludeBlocks:   Preserve
+	IncludeCategories:
+	  - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
+	    Priority:        2
+	  - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
+	    Priority:        3
+	  - Regex:           '.*'
+	    Priority:        1
+	IncludeIsMainRegex: '(Test)?$'
+	IndentCaseLabels: false
+	IndentPPDirectives: None
+	IndentWidth:     4
+	IndentWrappedFunctionNames: false
+	JavaScriptQuotes: Leave
+	JavaScriptWrapImports: true
+	KeepEmptyLinesAtTheStartOfBlocks: true
+	MacroBlockBegin: ''
+	MacroBlockEnd:   ''
+	MaxEmptyLinesToKeep: 1
+	NamespaceIndentation: None
+	ObjCBinPackProtocolList: Auto
+	ObjCBlockIndentWidth: 2
+	ObjCSpaceAfterProperty: false
+	ObjCSpaceBeforeProtocolList: true
+	PenaltyBreakAssignment: 2
+	PenaltyBreakBeforeFirstCallParameter: 19
+	PenaltyBreakComment: 300
+	PenaltyBreakFirstLessLess: 120
+	PenaltyBreakString: 1000
+	PenaltyBreakTemplateDeclaration: 10
+	PenaltyExcessCharacter: 1000000
+	PenaltyReturnTypeOnItsOwnLine: 60
+	PointerAlignment: Right
+	ReflowComments:  true
+	SortIncludes:    true
+	SortUsingDeclarations: true
+	SpaceAfterCStyleCast: true
+	SpaceAfterLogicalNot: false
+	SpaceAfterTemplateKeyword: true
+	SpaceBeforeAssignmentOperators: true
+	SpaceBeforeCpp11BracedList: false
+	SpaceBeforeCtorInitializerColon: true
+	SpaceBeforeInheritanceColon: true
+	SpaceBeforeParens: ControlStatements
+	SpaceBeforeRangeBasedForLoopColon: true
+	SpaceInEmptyParentheses: false
+	SpacesBeforeTrailingComments: 1
+	SpacesInAngles:  false
+	SpacesInContainerLiterals: true
+	SpacesInCStyleCastParentheses: false
+	SpacesInParentheses: false
+	SpacesInSquareBrackets: false
+	Standard:        Cpp11
+	StatementMacros:
+	  - Q_UNUSED
+	  - QT_REQUIRE_VERSION
+	TabWidth:        8
+	UseTab:          Never
+	EOF
+
+	mkdir $1
+	mkdir $1/src
+	touch $1/src/main.$SOURCEEXTENSION
+	mkdir $1/build
+	mkdir $1/include
+	mkdir $1/bin
+	echo -e -n "$MAKEFILE" > $1/makefile
+	echo -e -n "$FORMAT" > $1/.clang-format
+}
+
+if [ $# -ne 2 ]
+	then
+		echo -e "$ERRORMESSAGE"
+	else
+		case "$1" in
+			"-gcc" )
+			COMPILERSTRING="CC"
+			COMPILER="gcc"
+			SOURCEEXTENSION="c"
+            HEADEREXTENSION="h"
+			FLAGSTRING="CFLAGS"
+			create_project $2
+			;;
+			"-clang" )
+			COMPILERSTRING="CC"
+			COMPILER="clang"
+			SOURCEEXTENSION="c"
+            HEADEREXTENSION="h"
+			FLAGSTRING="CFLAGS"
+			create_project $2
+			;;
+			"-g++" )
+			COMPILERSTRING="CXX"
+			COMPILER="g++"
+			SOURCEEXTENSION="cc"
+            HEADEREXTENSION="hh"
+			FLAGSTRING="CXXFLAGS"
+			create_project $2
+			;;
+			"-clang++" )
+			COMPILERSTRING="CXX"
+			COMPILER="clang++"
+			SOURCEEXTENSION="cc"
+            HEADEREXTENSION="hh"
+			FLAGSTRING="CXXFLAGS"
+			create_project $2
+ 			;;
+			*)
+			echo -e "$ERRORMESSAGE"
+			;;
+		esac
+	fi

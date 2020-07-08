@@ -1,0 +1,74 @@
+TARGET = main
+
+HEADS =
+SRC = main
+LIBS =
+
+TDIR = bin
+IDIR = include
+BDIR = build
+SDIR = src
+
+HEADEXT = hh
+SRCEXT = cc
+OBJEXT = o
+TRGEXT = x
+
+RUNOPTIONS =
+
+DEPS = $(patsubst %, $(IDIR)/%.$(HEADEXT), $(HEADS))
+OBJS = $(patsubst %, $(BDIR)/%.$(OBJEXT), $(SRC))
+SCRS = $(patsubst %, $(SDIR)/%.$(SRCEXT), $(SRC))
+RULES = $(patsubst %, $(BDIR)/%.d, $(SRC))
+
+ifeq ($(strip $(TRGEXT)), )
+	TRGNAME=$(TARGET)
+else
+	TRGNAME=$(TARGET).$(TRGEXT)
+endif
+
+CXX = clang++
+CXXFLAGS = -Wall -Wextra
+CPPFLAGS = -I $(IDIR)
+LDFLAGS = $(LIBS)
+ifneq (${RELEASE}, y)  
+	CXXFLAGS += -g
+else
+	CXXFLAGS += -O2
+	LDFLAGS += -s
+endif
+
+CPPFLAGS += -MMD -MP
+ 
+.SUFFIXES :
+
+.PHONY : all
+all: $(TDIR)/$(TRGNAME)
+
+$(BDIR)/%.$(OBJEXT) : $(SDIR)/%.$(SRCEXT)
+	$(CXX) -c $(CPPFLAGS) $(CXXFLAGS) -o $@ $<
+ 
+$(TDIR)/$(TRGNAME): $(OBJS)
+	$(CXX) $(LDFLAGS) -o $@ $^
+ 
+.PHONY : clean
+clean :
+	rm -f $(TDIR)/$(TRGNAME) $(OBJS) $(RULES)
+
+.PHONY : run
+run : $(TDIR)/$(TRGNAME)
+	@$(TDIR)/$(TRGNAME) $(RUNOPTIONS)
+
+.PHONY : format
+format : $(SCRS) $(DEPS)
+	@clang-format -i $^
+
+.PHONY : release
+release :
+	@$(MAKE) RELEASE=y --no-print-directory -B
+
+.PHONY : valgrind
+valgrind : $(TDIR)/$(TRGNAME)
+	valgrind --leak-check=full --track-origins=yes $(TDIR)/$(TRGNAME) $(RUNOPTIONS)
+ 
+-include $(RULES)
