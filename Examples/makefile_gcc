@@ -70,5 +70,7 @@ release :
 .PHONY : valgrind
 valgrind : $(TDIR)/$(TRGNAME)
 	valgrind --leak-check=full --track-origins=yes $(TDIR)/$(TRGNAME) $(RUNOPTIONS)
- 
+
+$(shell mkdir -p $(BDIR) $(TDIR))
+
 -include $(RULES)

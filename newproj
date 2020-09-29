@@ -85,7 +85,9 @@ function create_project
 		.PHONY : valgrind
 		valgrind : \$(TDIR)/\$(TRGNAME)
 		\tvalgrind --leak-check=full --track-origins=yes \$(TDIR)/\$(TRGNAME) \$(RUNOPTIONS)
- 
+
+		\$(shell mkdir -p \$(BDIR) \$(TDIR))
+
 		-include \$(RULES)
 	EOF
 
